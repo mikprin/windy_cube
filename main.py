@@ -15,12 +15,11 @@ def main():
     wled_controller = WLEDController()
     
     def sound_callback(amplitude):
-        # hue = int((wled_controller.sound_color_hue + 2) % 360)
-        # wled_controller.sound_color_hue = hue
-        # brightness = int(config.MIN_BRIGHTNESS + 
-        #                (config.MAX_BRIGHTNESS - config.MIN_BRIGHTNESS) * amplitude)
-        # wled_controller.set_sound_color(hue, brightness)
-        pass
+        hue = int((wled_controller.sound_color_hue + 2) % 360)
+        wled_controller.sound_color_hue = hue
+        brightness = int(config.MIN_BRIGHTNESS + 
+                       (config.MAX_BRIGHTNESS - config.MIN_BRIGHTNESS) * amplitude)
+        wled_controller.set_sound_color(hue, brightness)
     
 
     wled_controller.sound_color_hue = 0
@@ -41,7 +40,6 @@ def main():
         while True:
             sleep(1)
     except KeyboardInterrupt:
-        print("\nShutting down...")
         audio_processor.stop()
         motion_server.stop()
 
