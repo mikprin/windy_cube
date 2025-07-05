@@ -24,7 +24,7 @@ MOTION_HOST = "0.0.0.0"
 MOTION_PORT = 65432
 ```
 
-3. Установка зависимостей
+3. Запуск
 ```bash
 python main.py
 ```
