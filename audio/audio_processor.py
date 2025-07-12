@@ -6,6 +6,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 class AudioProcessor:
+    """Typical Amplitude is 0.0023 for voice, 0.0001 for silence"""
     def __init__(self, callback):
         self.callback = callback
         self.current_amplitude = 0.0
@@ -25,11 +26,12 @@ class AudioProcessor:
 
             if len(indata) > 0:
                 amplitude = np.mean(np.abs(indata))
-                self.current_amplitude = (
-                    config.SMOOTHING_FACTOR * amplitude + 
-                    (1 - config.SMOOTHING_FACTOR) * self.current_amplitude
-                )
-                logger.info(f"Текущая амплитуда: {self.current_amplitude:.4f}")
+                # self.current_amplitude = (
+                #     config.SMOOTHING_FACTOR * amplitude + 
+                #     (1 - config.SMOOTHING_FACTOR) * self.current_amplitude
+                # )
+                self.current_amplitude = amplitude
+                logger.info(f"Текущая амплитуда: {self.current_amplitude:.4f}\nAmlitude: {amplitude:.4f}")
                 self.callback(self.current_amplitude)
                 
         except Exception as e:
