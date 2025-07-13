@@ -34,7 +34,7 @@ class AudioProcessor:
                     max_db = 0
                     
                     amplitude_db = max(min_db, min(max_db, amplitude_db))
-                    normalized_amplitude = ((amplitude_db - min_db) / (max_db - min_db)) * 29 + 1
+                    normalized_amplitude = ((amplitude_db - min_db) / (max_db - min_db)) * 99 + 1
                     
                     self.current_amplitude = normalized_amplitude
                 else:
