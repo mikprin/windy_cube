@@ -14,7 +14,7 @@
 
 // ------------------- MQTT Settings -----------------------
 // #define MQTT_HOST "192.168.8.5"
-#define MQTT_HOST "192.168.8.4" // Laptop
+#define MQTT_HOST "192.168.8.5" // Laptop
 #define MQTT_PORT 1883
 
 // MQTT Topics
