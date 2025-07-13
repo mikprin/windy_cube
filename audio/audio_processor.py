@@ -30,9 +30,6 @@ class AudioProcessor:
                 amplitude = np.mean(np.abs(indata))
                 if amplitude > 0:
                     amplitude_db = 20 * math.log10(amplitude)
-                    
-                    # Нормализуем диапазон decibel (-60 dB до 0 dB) в диапазон 1-30
-                    # -60 dB = очень тихо, 0 dB = максимум
                     min_db = -60
                     max_db = 0
                     
@@ -43,7 +40,8 @@ class AudioProcessor:
                 else:
                     self.current_amplitude = 1
             
-            logger.debug(f"Посчитанная амплитуда: {self.current_amplitude}")
+            logger.info(f"Посчитанная амплитуда: {self.current_amplitude}")
+            self.callback(self.current_amplitude)
             
                 
         except Exception as e:

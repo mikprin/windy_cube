@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 AMP_COEFF = 0.7
 TRANSITION_SPEED = 0.05  # How fast colors transition
 HYPNO_SPEED = 0.02  # Speed of hypnotic animation
-AMPLITUDE_THRESHOLD = 0.01  # Threshold to detect amplitude changes
+AMPLITUDE_THRESHOLD = 5  # Threshold to detect amplitude changes
 
 
 INSIDE_COLORS = [
@@ -33,7 +33,6 @@ class WLEDController:
         self.motion_group = None
         
         self.audio_leds = []
-
         self.audio_leds_colors = INSIDE_COLORS[0]
         self.target_colors = INSIDE_COLORS[0]
         self.current_colors = [float(c) for c in INSIDE_COLORS[0]]
@@ -42,6 +41,7 @@ class WLEDController:
         self.amplitude_change_time = time.time()
         self.hypno_phase = 0
         self.animation_time = 0
+        self.audio_leds_stopped = False
 
         self.audio_leds_thread = Thread(target=self._init_audio_leds, daemon=True)
         self.audio_leds_thread.start()
@@ -52,23 +52,26 @@ class WLEDController:
         self.audio_leds = [Wled.from_one_ip("192.168.8.40")]
         
         logger.info(f"Количество внутренних лент лент: {self.audio_leds}")
-        for audio_wled in self.audio_leds:
-            audio_wled.dmx.start()
-            logger.info(f"Лента запущена: {audio_wled}")
+        self.start_and_wait()
         
         n_leds = self.audio_leds[0].dmx.n_leds
-
     
         try:
             while True:
                 current_time = time.time()
                 time_since_change = current_time - self.amplitude_change_time
-                
                 self._update_color_transition()
                 
-                if time_since_change > 1.0:
-                    dmx_data = self._generate_hypno_animation(n_leds, current_time)
+                if time_since_change > 2.0:
+                    if not self.audio_leds_stopped:
+                        logger.info(f"Время с прошлого обновления большое, включаю пресет: {time_since_change}")
+                        self.stop_and_wait()
+                        self.audio_leds_stopped = True
                 else:
+                    if self.audio_leds_stopped:
+                        self.start_and_wait()
+                        self.audio_leds_stopped = False
+                        logger.info(f"Начала меняться амплитуда, включаю контроль лент")
                     dmx_data = self._generate_amplitude_animation(n_leds, current_time)
                 
                 with ThreadPoolExecutor() as executor:
@@ -81,6 +84,8 @@ class WLEDController:
         except Exception as e:
             logger.error(f"Ошибка в работе лент: {e}")
             self.stop()
+        finally:
+            self.stop_audio_leds_threaded()
 
 
     def _update_color_transition(self):
@@ -98,7 +103,7 @@ class WLEDController:
         dmx_data = []
         for led_idx, sine_value in enumerate(sine_wave):
             phase_offset = (current_time * 2 + led_idx * 0.1) % (2 * math.pi)
-            wave_modifier = (math.sin(phase_offset) * 0.3 + 0.7)  # 0.4 to 1.0 range
+            wave_modifier = (math.sin(phase_offset) * 0.3 + 0.7)
             
             rgb = [
                 int(self.current_colors[0] * sine_value * wave_modifier),
@@ -109,57 +114,6 @@ class WLEDController:
         
         return dmx_data
 
-    def _generate_hypno_animation(self, n_leds, current_time):
-        dmx_data = []
-        
-        # Create multiple overlapping waves for hypnotic effect
-        for led_idx in range(n_leds):
-            # Primary spiral wave
-            spiral_phase = (current_time * 4.5 + led_idx * 0.3) % (2 * math.pi)
-            spiral_intensity = (math.sin(spiral_phase) + 1) * 0.7
-            
-            # Secondary wave for complexity
-            wave2_phase = (current_time * 1.5 + led_idx * 0.15) % (2 * math.pi)
-            wave2_intensity = (math.sin(wave2_phase) + 1) * 0.3
-            
-            # Breathing effect
-            breath_phase = (current_time * 1.2) % (2 * math.pi)
-            breath_intensity = (math.sin(breath_phase) + 1) * 0.5 + 0.2
-            
-            # Combine effects
-            final_intensity = spiral_intensity * breath_intensity + wave2_intensity
-            final_intensity = max(0.1, min(1.0, final_intensity))
-            
-            # Color cycling for hypnotic effect
-            hue_offset = (current_time * 0.5 + led_idx * 0.05) % 1.0
-            base_hue = self._rgb_to_hue(self.current_colors)
-            new_hue = (base_hue + hue_offset * 0.2) % 1.0
-            
-            # Convert back to RGB with original saturation and brightness
-            rgb = self._hue_to_rgb(new_hue, self.current_colors, final_intensity)
-            
-            dmx_data.extend([int(c) for c in rgb])
-        
-        return dmx_data
-
-    def _rgb_to_hue(self, rgb):
-        r, g, b = [c / 255.0 for c in rgb]
-        h, s, v = colorsys.rgb_to_hsv(r, g, b)
-        return h
-
-    def _hue_to_rgb(self, hue, original_rgb, intensity):
-        r, g, b = [c / 255.0 for c in original_rgb]
-        h, s, v = colorsys.rgb_to_hsv(r, g, b)
-        
-        # Use new hue but keep original saturation characteristics
-        new_r, new_g, new_b = colorsys.hsv_to_rgb(hue, s, v)
-        
-        # Apply intensity
-        return [
-            new_r * 255 * intensity,
-            new_g * 255 * intensity,
-            new_b * 255 * intensity
-        ]
     
     def set_audio_gipnojam_from_amplitude(self, amplitude):
         amplitude_change = abs(amplitude - self.last_amplitude)
@@ -167,10 +121,6 @@ class WLEDController:
             self.amplitude_change_time = time.time()
         
         self.last_amplitude = amplitude
-        
-        # amplitude = max(1, min(30, amplitude))  # Clamp to 1-30 range
-        logger.info(f"Посчитанная амплитуда: {amplitude}")
-        
         
         if amplitude <= 5:
             # Pure purple
@@ -212,9 +162,41 @@ class WLEDController:
                 color1[2] + (color2[2] - color1[2]) * frac
             ]
 
+    def start_audio_leds_threaded(self):
+        def _start_leds():
+            try:
+                for audio_wled in self.audio_leds:
+                    audio_wled.dmx.start()
+                    logger.info(f"Лента запущена: {audio_wled}")
+            except Exception as e:
+                logger.error(f"Ошибка при запуске лент: {e}")
+        
+        start_thread = Thread(target=_start_leds, daemon=True)
+        start_thread.start()
+        return start_thread
+
+    def stop_audio_leds_threaded(self):
+        def _stop_leds():
+            try:
+                for audio_wled in self.audio_leds:
+                    audio_wled.dmx.stop()
+                    logger.info(f"Лента остановлена: {audio_wled}")
+            except Exception as e:
+                logger.error(f"Ошибка при остановке лент: {e}")
+        
+        stop_thread = Thread(target=_stop_leds, daemon=True)
+        stop_thread.start()
+        return stop_thread
+
+    def stop_and_wait(self):
+        thread = self.stop_audio_leds_threaded()
+        thread.join()
+        
+    def start_and_wait(self):
+        thread = self.start_audio_leds_threaded()
+        thread.join()
+
 
     def stop(self):
-        for audio_wled in self.audio_leds:
-            audio_wled.dmx.stop()
-            logger.info(f"Лента остановлена: {audio_wled}")
+        self.stop_and_wait()
         
