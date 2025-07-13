@@ -143,30 +143,30 @@ class WLEDController:
         #     color2 = INSIDE_COLORS[min(4, round(amplitude / AMP_COUNT) + 1)]
         # frac = (amplitude - 10 * (round(amplitude / AMP_COUNT) + 1)) / 5.0 
         
-        if amplitude <= 10:
-            frac = (amplitude - 10) / 5.0 
-            color1 = INSIDE_COLORS[0]
-            color2 = INSIDE_COLORS[0]
-        elif amplitude <= 20:
+        if amplitude <= 20:
             frac = (amplitude - 20) / 5.0 
             color1 = INSIDE_COLORS[0]
+            color2 = INSIDE_COLORS[0]
+        elif amplitude <= 30:
+            frac = (amplitude - 30) / 5.0 
+            color1 = INSIDE_COLORS[0]
             color2 = INSIDE_COLORS[1]
-        elif amplitude <= 40:
-            frac = (amplitude - 40) / 5.0 
+        elif amplitude <= 50:
+            frac = (amplitude - 50) / 5.0 
             color1 = INSIDE_COLORS[1]
             color2 = INSIDE_COLORS[2]
-        elif amplitude <= 60:
-            frac = (amplitude - 60) / 5.0
+        elif amplitude <= 70:
+            frac = (amplitude - 70) / 5.0
             color1 = INSIDE_COLORS[2]
             color2 = INSIDE_COLORS[3]
-        elif amplitude <= 80:
-            frac = (amplitude - 80) / 5.0 
+        else:
+            frac = (amplitude - 85) / 5.0 
             color1 = INSIDE_COLORS[3]
             color2 = INSIDE_COLORS[4]
-        else:
-            frac = min(1.0, (amplitude - 100) / 5.0)
-            color1 = INSIDE_COLORS[4]
-            color2 = INSIDE_COLORS[5]
+        # else:
+        #     frac = min(1.0, (amplitude - 100) / 5.0)
+        #     color1 = INSIDE_COLORS[4]
+        #     color2 = INSIDE_COLORS[5]
         
         self.target_colors = [
                 int(color1[0] + (color2[0] - color1[0]) * frac),
