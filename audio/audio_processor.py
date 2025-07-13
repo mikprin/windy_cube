@@ -3,6 +3,7 @@ import numpy as np
 from threading import Event
 import config
 import logging
+import math
 logger = logging.getLogger(__name__)
 import pyaudio
 
@@ -27,16 +28,21 @@ class AudioProcessor:
 
             if len(indata) > 0:
                 amplitude = np.mean(np.abs(indata))
-                # self.current_amplitude = (
-                #     config.SMOOTHING_FACTOR * amplitude + 
-                #     (1 - config.SMOOTHING_FACTOR) * self.current_amplitude
-                # )
-                
-                if abs(self.current_amplitude - amplitude) > 0.02:
-                    logger.info(f"Текущая амплитуда: {self.current_amplitude:.4f}\nAmlitude: {amplitude:.4f}")
-                self.current_amplitude = amplitude
-                
-                self.callback(self.current_amplitude)
+                if amplitude > 0:
+                    amplitude_db = 20 * math.log10(amplitude)
+                    min_db = -60
+                    max_db = 0
+                    
+                    amplitude_db = max(min_db, min(max_db, amplitude_db))
+                    normalized_amplitude = ((amplitude_db - min_db) / (max_db - min_db)) * 29 + 1
+                    
+                    self.current_amplitude = normalized_amplitude
+                else:
+                    self.current_amplitude = 1
+            
+            logger.info(f"Посчитанная амплитуда: {self.current_amplitude}")
+            self.callback(self.current_amplitude)
+            
                 
         except Exception as e:
             logger.error(f"Ошибка в audio callback: {str(e)}")

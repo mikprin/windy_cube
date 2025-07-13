@@ -1,137 +1,213 @@
-from time import sleep
 import config
+from utils.math_funcs import generate_sine_wave
 from wled.wled_common_client import Wled, Wleds
 import logging
 from threading import Thread
-import numpy as np
+from concurrent.futures import ThreadPoolExecutor
 import time
+import math
 logger = logging.getLogger(__name__)
 
 AMP_COEFF = 0.7
-    
-def generate_sine_wave(n_leds, frequency=0.1, amplitude=1.0):
-    x = np.arange(n_leds)
-    sine_wave = amplitude * np.sin(2 * np.pi * frequency * x / n_leds)
-    return (sine_wave + 1) / 2  # Normalize to 0-1
+TRANSITION_SPEED = 1.2
+AMPLITUDE_THRESHOLD = 1
+PRESET_THRESHOLD = 30
+MIN_AMP = 1
+MAX_AMP = 100
 
+INSIDE_COLORS = [
+    [255, 140, 0],
+    [138, 43, 226],
+    [50, 205, 50],
+    [255, 215, 0],
+    [32, 178, 170],
+]
+
+AMP_COUNT = (MAX_AMP) / len(INSIDE_COLORS)
+    
 class WLEDController:
     def __init__(self):
-        self.sound_group = None
-        self.motion_group = None
-        
         self.audio_leds = []
-        self.audio_leds_thread = Thread(target=self._init_audio_leds)
-        self.audio_leds_thread.daemon = True
-        
-        self.audio_leds_colors = [255, 120, 245]
-        # motion_leds_thread = Thread(target=motion_server.start)
-        
-        # self._init_devices()
-        
-        # Start the thread to initialize audio LEDs
+        self.audio_leds_colors = INSIDE_COLORS[0]
+        self.target_colors = list(INSIDE_COLORS[0])
+        self.current_colors = [float(c) for c in INSIDE_COLORS[0]]
+
+        self.last_amplitude = 0
+        self.amplitude_change_time = time.time()
+        self.hypno_phase = 0
+        self.animation_time = 0
+        self.audio_leds_stopped = False
+
+        self.audio_leds_thread = Thread(target=self._init_audio_leds, daemon=True)
         self.audio_leds_thread.start()
     
 
     def _init_audio_leds(self):
         logger.info("Инициализация WLED устройств...")
-        wled = Wled.from_one_ip("192.168.8.40")
+        wled1 = Wled.from_one_ip("192.168.8.40")
+        self.audio_leds = [wled1]
         
-        self.audio_leds.append(wled)
-        wled.dmx.start()
-        # self.audio_leds[0].dmx.start()
-        # n_leds = self.audio_leds[0].dmx.n_leds
-        n_leds = wled.dmx.n_leds
-        logger.info(f"Количество светодиодов: {n_leds}")
+        logger.info(f"Количество внутренних лент лент: {self.audio_leds}")
+        self.start_and_wait()
         
+        n_leds = self.audio_leds[0].dmx.n_leds
+    
+        try:
+            while True:
+                current_time = time.time()
+                time_since_change = current_time - self.amplitude_change_time
+                self._update_color_transition()
+                dmx_data = self._generate_amplitude_animation(n_leds, current_time)
+                
+                if time_since_change > PRESET_THRESHOLD:
+                    if not self.audio_leds_stopped:
+                        logger.info(f"Время с прошлого обновления большое, включаю пресет: {time_since_change}")
+                        self.stop_and_wait()
+                        self.audio_leds_stopped = True
+                else:
+                    if self.audio_leds_stopped:
+                        self.start_and_wait()
+                        self.audio_leds_stopped = False
+                        logger.info(f"Начала меняться амплитуда, включаю контроль лент")
+
+                    with ThreadPoolExecutor() as executor:
+                        futures = [
+                            executor.submit(wled.dmx.set_data, dmx_data)
+                            for wled in self.audio_leds
+                        ]
+                
+                time.sleep(0.033)
+        except Exception as e:
+            logger.error(f"Ошибка в работе лент: {e}")
+            self.stop()
+        finally:
+            self.stop_audio_leds_threaded()
+
+
+    def _update_color_transition(self):
+        color_changed = False
+        
+        logger.debug(f"BEFORE: current={[round(c, 1) for c in self.current_colors]}, target={[round(c, 1) for c in self.target_colors]}")
+        
+        for i in range(3):
+            diff = self.target_colors[i] - self.current_colors[i]
+            logger.debug(f"Channel {i}: diff={diff:.2f}")
+            
+            if abs(diff) > 0.1:
+                old_color = self.current_colors[i]
+                self.current_colors[i] += diff * TRANSITION_SPEED
+                color_changed = True
+                logger.debug(f"Color channel {i}: {old_color:.1f} -> {self.current_colors[i]:.1f} (diff: {diff:.2f})")
+            else:
+                if abs(self.current_colors[i] - self.target_colors[i]) > 0.01:
+                    self.current_colors[i] = self.target_colors[i]
+                    color_changed = True
+                    logger.debug(f"Color channel {i}: snapped to target {self.target_colors[i]}")
+        
+        if color_changed:
+            logger.debug(f"Colors updated to: {[round(c, 1) for c in self.current_colors]}")
+        else:
+            logger.debug("No color change needed")
+            
+
+    def _generate_amplitude_animation(self, n_leds, current_time):
+        self.animation_time = current_time
         sine_wave = generate_sine_wave(n_leds, frequency=2, amplitude=AMP_COEFF)
         
-        while True:
-            for led in range(n_leds):
-                # Calculate the sine wave value for this LED
-                sine_value = sine_wave[led]
-                
-                # Pink color (high red, medium green, low blue)
-                red = int(self.audio_leds_colors[0] * sine_value)
-                green = int(self.audio_leds_colors[1] * sine_value)  # Medium intensity for pink
-                blue = int(self.audio_leds_colors[2] * sine_value)   # Higher blue for pink tone
-                
-                wled.dmx.set_data([red, green, blue] * n_leds)
-                time.sleep(0.01)  # Adjust speed of animation
-
-        
-        
-
-    # def _init_device_group(self, ip_list, group_name):
-    #     active_devices = []
-    #     failed_devices = []
-        
-    #     for ip in ip_list:
-    #         try:
-    #             device = WLED(ip)
-    #             device.set_hsv(0, 0, 0, 0.1)
-    #             active_devices.append(device)
-    #             logger.info(f"Устройство {ip} ({group_name}) успешно подключено")
-    #         except Exception as e:
-    #             failed_devices.append(ip)
-    #             logger.warning(
-    #                 f"Не удалось подключиться к устройству {ip} ({group_name}): {str(e)}"
-    #             )
-    #             continue
-        
-    #     if not active_devices:
-    #         logger.error(f"Ни одно из устройств {group_name} не доступно!")
-    #         return None
-        
-    #     if failed_devices:
-    #         logger.warning(
-    #             f"Не подключены некоторые устройства {group_name}: {', '.join(failed_devices)}"
-    #         )
-        
-    #     return WLEDGroup([d.ip for d in active_devices])
-
-    # def _setup_group(self, group):
-    #     if group is None:
-    #         return
+        dmx_data = []
+        for led_idx, sine_value in enumerate(sine_wave):
+            phase_offset = (current_time * 2 + led_idx * 0.1) % (2 * math.pi)
+            wave_modifier = (math.sin(phase_offset) * 0.3 + 0.7)
             
-    #     for device in group.devices:
-    #         try:
-    #             device.set_hsv(0, 255, 100, transition_time=0.1)
-    #             sleep(0.1)
-    #         except Exception as e:
-    #             logger.warning(
-    #                 f"Ошибка настройки устройства {device.ip}: {str(e)}"
-    #             )
-    #             continue
+            rgb = [
+                max(0, min(255, int(self.current_colors[0] * sine_value * wave_modifier))),
+                max(0, min(255, int(self.current_colors[1] * sine_value * wave_modifier))),
+                max(0, min(255, int(self.current_colors[2] * sine_value * wave_modifier)))
+            ]
+            dmx_data.extend(rgb)
+        
+        return dmx_data
 
-
+    
     def set_audio_gipnojam_from_amplitude(self, amplitude):
-        # self.audio_leds_colors[0] = amplitude
-        # self.audio_leds_colors[1] = amplitude
-        # self.audio_leds_colors[2] = amplitude
-        pass
+        amplitude_change = abs(amplitude - self.last_amplitude)
+        if amplitude_change > AMPLITUDE_THRESHOLD:
+            self.amplitude_change_time = time.time()
+        
+        self.last_amplitude = amplitude
 
+        color1 = INSIDE_COLORS[round(amplitude / AMP_COUNT)]
+        if round(amplitude / AMP_COUNT) < 1:
+            color2 = INSIDE_COLORS[0]
+        else:
+            color2 = INSIDE_COLORS[min(5, round(amplitude / AMP_COUNT) + 1)]
+        frac = (amplitude - 10 * (round(amplitude / AMP_COUNT) + 1)) / 5.0 
+        
+        # if amplitude <= 10:
+        #     frac = (amplitude - 10) / 5.0 
+        #     color1 = INSIDE_COLORS[0]
+        #     color2 = INSIDE_COLORS[0]
+        # elif amplitude <= 20:
+        #     frac = (amplitude - 20) / 5.0 
+        #     color1 = INSIDE_COLORS[0]
+        #     color2 = INSIDE_COLORS[1]
+        # elif amplitude <= 40:
+        #     frac = (amplitude - 40) / 5.0 
+        #     color1 = INSIDE_COLORS[1]
+        #     color2 = INSIDE_COLORS[2]
+        # elif amplitude <= 60:
+        #     frac = (amplitude - 60) / 5.0
+        #     color1 = INSIDE_COLORS[2]
+        #     color2 = INSIDE_COLORS[3]
+        # elif amplitude <= 80:
+        #     frac = (amplitude - 80) / 5.0 
+        #     color1 = INSIDE_COLORS[3]
+        #     color2 = INSIDE_COLORS[4]
+        # else:
+        #     frac = min(1.0, (amplitude - 100) / 5.0)
+        #     color1 = INSIDE_COLORS[4]
+        #     color2 = INSIDE_COLORS[5]
+        
+        self.target_colors = [
+                int(color1[0] + (color2[0] - color1[0]) * frac),
+                int(color1[1] + (color2[1] - color1[1]) * frac),
+                int(color1[2] + (color2[2] - color1[2]) * frac)
+            ]
 
-    def set_sound_color(self, hue, brightness, transition_time=0.2):
-        brightness = max(config.MIN_BRIGHTNESS, min(config.MAX_BRIGHTNESS, brightness))
-        self.sound_group.set_hsv(
-            hue, 
-            255,
-            brightness,
-            transition_time
-        )
+    def start_audio_leds_threaded(self):
+        def _start_leds():
+            try:
+                for audio_wled in self.audio_leds:
+                    audio_wled.dmx.start()
+                    logger.info(f"Лента запущена: {audio_wled}")
+            except Exception as e:
+                logger.error(f"Ошибка при запуске лент: {e}")
+        
+        start_thread = Thread(target=_start_leds, daemon=True)
+        start_thread.start()
+        return start_thread
 
-    def set_motion_color(self, hue, transition_time=0.5):
-        self.motion_group.set_hsv(
-            hue,
-            255,
-            200,  # фиксированная яркость для внешних лент движения
-            transition_time
-        )
+    def stop_audio_leds_threaded(self):
+        def _stop_leds():
+            try:
+                for audio_wled in self.audio_leds:
+                    audio_wled.dmx.stop()
+                    logger.info(f"Лента остановлена: {audio_wled}")
+            except Exception as e:
+                logger.error(f"Ошибка при остановке лент: {e}")
+        
+        stop_thread = Thread(target=_stop_leds, daemon=True)
+        stop_thread.start()
+        return stop_thread
 
-    def close(self):
-        for wled in self.audio_leds:
-            wled.dmx.stop()
-            
-        # self.sound_group.close()
-        # self.motion_group.close()
+    def stop_and_wait(self):
+        thread = self.stop_audio_leds_threaded()
+        thread.join()
+        
+    def start_and_wait(self):
+        thread = self.start_audio_leds_threaded()
+        thread.join()
+
+    def stop(self):
+        self.stop_audio_leds_threaded()
         
