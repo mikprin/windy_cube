@@ -19,7 +19,6 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-
 class MotionServer:
     """
     MQTT-based motion detection server that handles messages from ESP32 PIR sensor
@@ -53,6 +52,7 @@ class MotionServer:
         self.mqtt_username = os.getenv("MQTT_USERNAME")
         self.mqtt_password = os.getenv("MQTT_PASSWORD", None)
         self.motion_timeout = int(os.getenv("MOTION_TIMEOUT", "10"))
+
         
         # Setup logging
         log_level = logging.DEBUG if debug else logging.INFO
@@ -61,7 +61,7 @@ class MotionServer:
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
         self.logger = logging.getLogger(__name__)
-        
+
         # MQTT topics (matching ESP32 code)
         self.topics = {
             'motion_detected': 'motion/detected',
@@ -194,14 +194,7 @@ class MotionServer:
         """Trigger action when motion is detected"""
         try:
             if self.wled_controller:
-                if hasattr(self.wled_controller, 'turn_on'):
-                    self.wled_controller.turn_on()
-                    self.logger.info("WLED turned on due to motion")
-                elif hasattr(self.wled_controller, 'activate'):
-                    self.wled_controller.activate()
-                    self.logger.info("WLED activated due to motion")
-                else:
-                    self.logger.warning("WLED controller has no recognized activation method")
+                self.wled_controller.turn_motion_wled(self.motion_timeout)
             else:
                 self.logger.debug("No WLED controller configured")
                 

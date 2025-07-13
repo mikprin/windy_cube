@@ -23,6 +23,45 @@ INSIDE_COLORS = [
     [32, 178, 170],
 ]
 
+MOTION_PRESET = {
+    "on": True,
+    "bri": 128,
+    "transition": 7,
+    "mainseg": 0,
+    "seg": [{
+        "id": 0,
+        "start": 0,
+        "stop": 280,
+        "grp": 1,
+        "spc": 0,
+        "of": 0,
+        "on": True,
+        "frz": False,
+        "bri": 255,
+        "cct": 127,
+        "set": 0,
+        "n": "",
+        "col": [[82, 255, 66], [0, 0, 0], [0, 0, 0]],
+        "fx": 115,
+        "sx": 128,
+        "ix": 128,
+        "pal": 67,
+        "c1": 128,
+        "c2": 128,
+        "c3": 16,
+        "sel": True,
+        "rev": False,
+        "mi": False,
+        "o1": False,
+        "o2": False,
+        "o3": False,
+        "si": 0,
+        "m12": 0
+    }] + [{"stop": 0}] * 15
+}  
+
+MOTION_WLED_IP = '192.168.8.46'
+
 AMP_COUNT = (MAX_AMP) / len(INSIDE_COLORS)
     
 class WLEDController:
@@ -40,7 +79,20 @@ class WLEDController:
 
         self.audio_leds_thread = Thread(target=self._init_audio_leds, daemon=True)
         self.audio_leds_thread.start()
+
+        self.motion_wled = Wled.from_one_ip(MOTION_WLED_IP)
     
+
+    def turn_motion_wled(self, timeout):
+        self.motion_wled.post_json_state(MOTION_PRESET)
+        logger.info("Включили ленту движения")
+        
+        def turn_off():
+            time.sleep(timeout)
+            self.motion_wled.post_json_state({"bri": 1})
+            logger.info("Выключили ленту движения")
+        
+        Thread(target=turn_off, daemon=True).start()
 
     def _init_audio_leds(self):
         logger.info("Инициализация WLED устройств...")
