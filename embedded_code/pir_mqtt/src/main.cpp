@@ -151,7 +151,7 @@ void pirMotionTask(void *parameter)
         }
         
         // Save motion count to preferences
-        prefs.putULong("motionCount", motionCount);
+        // prefs.putULong("motionCount", motionCount);
       }
       else
       {
@@ -217,9 +217,10 @@ void setup()
   {
     Serial.println("[Prefs] NVS preferences initialized.");
     
+    motionCount = 0;
     // Load previously saved motion count
-    motionCount = prefs.getULong("motionCount", 0);
-    Serial.printf("[Prefs] Loaded motion count: %lu\n", motionCount);
+    // motionCount = prefs.getULong("motionCount", 0);
+    // Serial.printf("[Prefs] Loaded motion count: %lu\n", motionCount);
   }
 
   // Initialize PIR sensor pin
