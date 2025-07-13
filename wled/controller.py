@@ -10,17 +10,20 @@ logger = logging.getLogger(__name__)
 
 AMP_COEFF = 0.7
 TRANSITION_SPEED = 1.2
-AMPLITUDE_THRESHOLD = 5 
-PRESET_THRESHOLD = 60 
-
+AMPLITUDE_THRESHOLD = 1
+PRESET_THRESHOLD = 30
+MIN_AMP = 1
+MAX_AMP = 100
 
 INSIDE_COLORS = [
-    [187, 186, 255],
-    [255, 194, 226],
-    [244, 253, 177],
-    [124, 139, 255],
-    [149, 255, 247]
+    [255, 140, 0],
+    [138, 43, 226],
+    [50, 205, 50],
+    [255, 215, 0],
+    [32, 178, 170],
 ]
+
+AMP_COUNT = (MAX_AMP) / len(INSIDE_COLORS)
     
 class WLEDController:
     def __init__(self):
@@ -132,41 +135,40 @@ class WLEDController:
             self.amplitude_change_time = time.time()
         
         self.last_amplitude = amplitude
-        logger.debug(f"Амплитуда: {amplitude}")
-        if amplitude <= 5:
-            self.target_colors = list(INSIDE_COLORS[0])
-        elif amplitude <= 11:
-            frac = (amplitude - 5) / 6.0 
-            color1 = INSIDE_COLORS[0]  # purple
-            color2 = INSIDE_COLORS[1]  # pink
-            self.target_colors = [
-                int(color1[0] + (color2[0] - color1[0]) * frac),
-                int(color1[1] + (color2[1] - color1[1]) * frac),
-                int(color1[2] + (color2[2] - color1[2]) * frac)
-            ]
-        elif amplitude <= 16:
-            frac = (amplitude - 11) / 5.0  # 5 = 16-11
-            color1 = INSIDE_COLORS[1]  # pink
-            color2 = INSIDE_COLORS[2]  # yellow
-            self.target_colors = [
-                int(color1[0] + (color2[0] - color1[0]) * frac),
-                int(color1[1] + (color2[1] - color1[1]) * frac),
-                int(color1[2] + (color2[2] - color1[2]) * frac)
-            ]
-        elif amplitude <= 21:
-            frac = (amplitude - 16) / 5.0  # 5 = 21-16
-            color1 = INSIDE_COLORS[2]  # yellow
-            color2 = INSIDE_COLORS[3]  # blue
-            self.target_colors = [
-                int(color1[0] + (color2[0] - color1[0]) * frac),
-                int(color1[1] + (color2[1] - color1[1]) * frac),
-                int(color1[2] + (color2[2] - color1[2]) * frac)
-            ]
+
+        color1 = INSIDE_COLORS[round(amplitude / AMP_COUNT)]
+        if round(amplitude / AMP_COUNT) < 1:
+            color2 = INSIDE_COLORS[0]
         else:
-            frac = min(1.0, (amplitude - 21) / 9.0)  # 9 = 30-21
-            color1 = INSIDE_COLORS[3]  # blue
-            color2 = INSIDE_COLORS[4]  # turquoise
-            self.target_colors = [
+            color2 = INSIDE_COLORS[min(5, round(amplitude / AMP_COUNT) + 1)]
+        frac = (amplitude - 10 * (round(amplitude / AMP_COUNT) + 1)) / 5.0 
+        
+        # if amplitude <= 10:
+        #     frac = (amplitude - 10) / 5.0 
+        #     color1 = INSIDE_COLORS[0]
+        #     color2 = INSIDE_COLORS[0]
+        # elif amplitude <= 20:
+        #     frac = (amplitude - 20) / 5.0 
+        #     color1 = INSIDE_COLORS[0]
+        #     color2 = INSIDE_COLORS[1]
+        # elif amplitude <= 40:
+        #     frac = (amplitude - 40) / 5.0 
+        #     color1 = INSIDE_COLORS[1]
+        #     color2 = INSIDE_COLORS[2]
+        # elif amplitude <= 60:
+        #     frac = (amplitude - 60) / 5.0
+        #     color1 = INSIDE_COLORS[2]
+        #     color2 = INSIDE_COLORS[3]
+        # elif amplitude <= 80:
+        #     frac = (amplitude - 80) / 5.0 
+        #     color1 = INSIDE_COLORS[3]
+        #     color2 = INSIDE_COLORS[4]
+        # else:
+        #     frac = min(1.0, (amplitude - 100) / 5.0)
+        #     color1 = INSIDE_COLORS[4]
+        #     color2 = INSIDE_COLORS[5]
+        
+        self.target_colors = [
                 int(color1[0] + (color2[0] - color1[0]) * frac),
                 int(color1[1] + (color2[1] - color1[1]) * frac),
                 int(color1[2] + (color2[2] - color1[2]) * frac)
