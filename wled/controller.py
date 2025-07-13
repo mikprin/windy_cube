@@ -1,4 +1,3 @@
-from time import sleep
 import config
 from utils.math_funcs import generate_sine_wave
 from wled.wled_common_client import Wled, Wleds
@@ -7,17 +6,15 @@ from threading import Thread
 from concurrent.futures import ThreadPoolExecutor
 import time
 import math
-import colorsys
 logger = logging.getLogger(__name__)
 
 AMP_COEFF = 0.7
-TRANSITION_SPEED = 0.05  # How fast colors transition
-HYPNO_SPEED = 0.02  # Speed of hypnotic animation
-AMPLITUDE_THRESHOLD = 5  # Threshold to detect amplitude changes
+TRANSITION_SPEED = 1.2
+AMPLITUDE_THRESHOLD = 5 
+PRESET_THRESHOLD = 60 
 
 
 INSIDE_COLORS = [
-    # [255, 120, 245]
     [187, 186, 255],
     [255, 194, 226],
     [244, 253, 177],
@@ -25,16 +22,11 @@ INSIDE_COLORS = [
     [149, 255, 247]
 ]
     
-
-
 class WLEDController:
     def __init__(self):
-        self.sound_group = None
-        self.motion_group = None
-        
         self.audio_leds = []
         self.audio_leds_colors = INSIDE_COLORS[0]
-        self.target_colors = INSIDE_COLORS[0]
+        self.target_colors = list(INSIDE_COLORS[0])
         self.current_colors = [float(c) for c in INSIDE_COLORS[0]]
 
         self.last_amplitude = 0
@@ -49,7 +41,8 @@ class WLEDController:
 
     def _init_audio_leds(self):
         logger.info("Инициализация WLED устройств...")
-        self.audio_leds = [Wled.from_one_ip("192.168.8.40")]
+        wled1 = Wled.from_one_ip("192.168.8.40")
+        self.audio_leds = [wled1]
         
         logger.info(f"Количество внутренних лент лент: {self.audio_leds}")
         self.start_and_wait()
@@ -61,8 +54,9 @@ class WLEDController:
                 current_time = time.time()
                 time_since_change = current_time - self.amplitude_change_time
                 self._update_color_transition()
+                dmx_data = self._generate_amplitude_animation(n_leds, current_time)
                 
-                if time_since_change > 2.0:
+                if time_since_change > PRESET_THRESHOLD:
                     if not self.audio_leds_stopped:
                         logger.info(f"Время с прошлого обновления большое, включаю пресет: {time_since_change}")
                         self.stop_and_wait()
@@ -72,13 +66,12 @@ class WLEDController:
                         self.start_and_wait()
                         self.audio_leds_stopped = False
                         logger.info(f"Начала меняться амплитуда, включаю контроль лент")
-                    dmx_data = self._generate_amplitude_animation(n_leds, current_time)
-                
-                with ThreadPoolExecutor() as executor:
-                    futures = [
-                        executor.submit(wled.dmx.set_data, dmx_data)
-                        for wled in self.audio_leds
-                    ]
+
+                    with ThreadPoolExecutor() as executor:
+                        futures = [
+                            executor.submit(wled.dmx.set_data, dmx_data)
+                            for wled in self.audio_leds
+                        ]
                 
                 time.sleep(0.033)
         except Exception as e:
@@ -89,12 +82,30 @@ class WLEDController:
 
 
     def _update_color_transition(self):
+        color_changed = False
+        
+        logger.debug(f"BEFORE: current={[round(c, 1) for c in self.current_colors]}, target={[round(c, 1) for c in self.target_colors]}")
+        
         for i in range(3):
             diff = self.target_colors[i] - self.current_colors[i]
-            if abs(diff) > 1:
+            logger.debug(f"Channel {i}: diff={diff:.2f}")
+            
+            if abs(diff) > 0.1:
+                old_color = self.current_colors[i]
                 self.current_colors[i] += diff * TRANSITION_SPEED
+                color_changed = True
+                logger.debug(f"Color channel {i}: {old_color:.1f} -> {self.current_colors[i]:.1f} (diff: {diff:.2f})")
             else:
-                self.current_colors[i] = self.target_colors[i]
+                if abs(self.current_colors[i] - self.target_colors[i]) > 0.01:
+                    self.current_colors[i] = self.target_colors[i]
+                    color_changed = True
+                    logger.debug(f"Color channel {i}: snapped to target {self.target_colors[i]}")
+        
+        if color_changed:
+            logger.debug(f"Colors updated to: {[round(c, 1) for c in self.current_colors]}")
+        else:
+            logger.debug("No color change needed")
+            
 
     def _generate_amplitude_animation(self, n_leds, current_time):
         self.animation_time = current_time
@@ -106,9 +117,9 @@ class WLEDController:
             wave_modifier = (math.sin(phase_offset) * 0.3 + 0.7)
             
             rgb = [
-                int(self.current_colors[0] * sine_value * wave_modifier),
-                int(self.current_colors[1] * sine_value * wave_modifier),
-                int(self.current_colors[2] * sine_value * wave_modifier)
+                max(0, min(255, int(self.current_colors[0] * sine_value * wave_modifier))),
+                max(0, min(255, int(self.current_colors[1] * sine_value * wave_modifier))),
+                max(0, min(255, int(self.current_colors[2] * sine_value * wave_modifier)))
             ]
             dmx_data.extend(rgb)
         
@@ -121,45 +132,44 @@ class WLEDController:
             self.amplitude_change_time = time.time()
         
         self.last_amplitude = amplitude
-        
+        logger.debug(f"Амплитуда: {amplitude}")
         if amplitude <= 5:
-            # Pure purple
-            self.target_colors = INSIDE_COLORS[0]
+            self.target_colors = list(INSIDE_COLORS[0])
         elif amplitude <= 11:
             frac = (amplitude - 5) / 6.0 
             color1 = INSIDE_COLORS[0]  # purple
             color2 = INSIDE_COLORS[1]  # pink
             self.target_colors = [
-                color1[0] + (color2[0] - color1[0]) * frac,
-                color1[1] + (color2[1] - color1[1]) * frac,
-                color1[2] + (color2[2] - color1[2]) * frac
+                int(color1[0] + (color2[0] - color1[0]) * frac),
+                int(color1[1] + (color2[1] - color1[1]) * frac),
+                int(color1[2] + (color2[2] - color1[2]) * frac)
             ]
         elif amplitude <= 16:
             frac = (amplitude - 11) / 5.0  # 5 = 16-11
             color1 = INSIDE_COLORS[1]  # pink
             color2 = INSIDE_COLORS[2]  # yellow
             self.target_colors = [
-                color1[0] + (color2[0] - color1[0]) * frac,
-                color1[1] + (color2[1] - color1[1]) * frac,
-                color1[2] + (color2[2] - color1[2]) * frac
+                int(color1[0] + (color2[0] - color1[0]) * frac),
+                int(color1[1] + (color2[1] - color1[1]) * frac),
+                int(color1[2] + (color2[2] - color1[2]) * frac)
             ]
         elif amplitude <= 21:
             frac = (amplitude - 16) / 5.0  # 5 = 21-16
             color1 = INSIDE_COLORS[2]  # yellow
             color2 = INSIDE_COLORS[3]  # blue
             self.target_colors = [
-                color1[0] + (color2[0] - color1[0]) * frac,
-                color1[1] + (color2[1] - color1[1]) * frac,
-                color1[2] + (color2[2] - color1[2]) * frac
+                int(color1[0] + (color2[0] - color1[0]) * frac),
+                int(color1[1] + (color2[1] - color1[1]) * frac),
+                int(color1[2] + (color2[2] - color1[2]) * frac)
             ]
         else:
-            frac = (amplitude - 21) / 9.0  # 9 = 30-21
+            frac = min(1.0, (amplitude - 21) / 9.0)  # 9 = 30-21
             color1 = INSIDE_COLORS[3]  # blue
             color2 = INSIDE_COLORS[4]  # turquoise
             self.target_colors = [
-                color1[0] + (color2[0] - color1[0]) * frac,
-                color1[1] + (color2[1] - color1[1]) * frac,
-                color1[2] + (color2[2] - color1[2]) * frac
+                int(color1[0] + (color2[0] - color1[0]) * frac),
+                int(color1[1] + (color2[1] - color1[1]) * frac),
+                int(color1[2] + (color2[2] - color1[2]) * frac)
             ]
 
     def start_audio_leds_threaded(self):
@@ -196,7 +206,6 @@ class WLEDController:
         thread = self.start_audio_leds_threaded()
         thread.join()
 
-
     def stop(self):
-        self.stop_and_wait()
+        self.stop_audio_leds_threaded()
         
