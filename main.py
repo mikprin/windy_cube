@@ -38,6 +38,7 @@ def main():
     except KeyboardInterrupt:
         audio_processor.stop()
         motion_server.stop()
+        wled_controller.stop()
 
 if __name__ == "__main__":
     main()
