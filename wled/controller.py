@@ -140,7 +140,7 @@ class WLEDController:
         if round(amplitude / AMP_COUNT) < 1:
             color2 = INSIDE_COLORS[0]
         else:
-            color2 = INSIDE_COLORS[min(5, round(amplitude / AMP_COUNT) + 1)]
+            color2 = INSIDE_COLORS[min(4, round(amplitude / AMP_COUNT) + 1)]
         frac = (amplitude - 10 * (round(amplitude / AMP_COUNT) + 1)) / 5.0 
         
         # if amplitude <= 10:
