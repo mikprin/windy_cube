@@ -4,6 +4,7 @@ from threading import Event
 import config
 import logging
 logger = logging.getLogger(__name__)
+import pyaudio
 
 class AudioProcessor:
     """Typical Amplitude is 0.0023 for voice, 0.0001 for silence"""
@@ -30,8 +31,11 @@ class AudioProcessor:
                 #     config.SMOOTHING_FACTOR * amplitude + 
                 #     (1 - config.SMOOTHING_FACTOR) * self.current_amplitude
                 # )
+                
+                if abs(self.current_amplitude - amplitude) > 0.02:
+                    logger.info(f"Текущая амплитуда: {self.current_amplitude:.4f}\nAmlitude: {amplitude:.4f}")
                 self.current_amplitude = amplitude
-                logger.info(f"Текущая амплитуда: {self.current_amplitude:.4f}\nAmlitude: {amplitude:.4f}")
+                
                 self.callback(self.current_amplitude)
                 
         except Exception as e:

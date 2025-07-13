@@ -23,11 +23,12 @@ services:
 
   # Windy Cube Application
   windy_cube:
+    user: "${UID}:${GID}"  # Run as the current user from the host
     build:
       context: .
       dockerfile: Dockerfile
     container_name: windy_cube
-    user: "${UID}:${GID}"  # Run as the current user from the host
+    
     volumes:
       - "./data:/data"  # Mount data directory for persistence
       - "./.env:/app/.env"  # Mount environment file

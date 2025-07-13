@@ -21,7 +21,7 @@ def main():
     wled_controller.sound_color_hue = 0
     audio_processor = AudioProcessor(sound_callback)
     
-    motion_server = MotionServer(wled_controller)
+    motion_server = MotionServer(wled_controller, debug=True)
     
     audio_thread = Thread(target=audio_processor.start)
     motion_thread = Thread(target=motion_server.start)
