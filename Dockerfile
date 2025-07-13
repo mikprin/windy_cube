@@ -43,6 +43,8 @@ COPY wled /app/wled
 COPY audio /app/audio
 COPY config.py /app/config.py
 COPY scripts /app/scripts
+COPY utils /app/utils
+
 # Run the app
 CMD ["python3", "main.py"]
 
