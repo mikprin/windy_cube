@@ -1,6 +1,6 @@
 version: '3.7'
 services:
-#   # MQTT Broker (Eclipse Mosquitto)
+  # MQTT Broker (Eclipse Mosquitto)
   mosquitto:
     image: eclipse-mosquitto:2
     container_name: mosquitto
@@ -18,4 +18,41 @@ services:
     stdin_open: true
     tty: true
     restart: unless-stopped
+    networks:
+      - wind-cube-network
 
+  # Windy Cube Application
+  windy_cube:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: windy_cube
+    user: "${UID}:${GID}"  # Run as the current user from the host
+    volumes:
+      - "./data:/data"  # Mount data directory for persistence
+      - "./.env:/app/.env"  # Mount environment file
+      # Audio support - PulseAudio
+      - "/run/user/${UID}/pulse:/run/user/${UID}/pulse:rw"
+      # Audio support - ALSA fallback
+      - "/dev/snd:/dev/snd:rw"
+    environment:
+      - MQTT_HOST=mosquitto  # Use service name for internal communication
+      - MQTT_PORT=1883
+
+      # Audio environment variables
+      - PULSE_RUNTIME_PATH=/run/user/${UID}/pulse
+      - PULSE_SERVER=unix:/run/user/${UID}/pulse/native
+    depends_on:
+      - mosquitto
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    devices:
+      - "/dev/snd:/dev/snd"  # Audio devices
+    networks:
+      - wind-cube-network
+    # command: ["sleep", "10000"]
+
+networks:
+  wind-cube-network:
+    driver: bridge

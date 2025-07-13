@@ -1,15 +1,23 @@
 """
 MotionServer class for handling MQTT motion detection from ESP32 PIR sensor
 and triggering actions like WLED control.
+
+Requirements:
+    pip install paho-mqtt python-dotenv
 """
 
 import json
 import logging
+import os
 import time
 import threading
 from datetime import datetime
 from typing import Optional, Callable, Any, Dict
 import paho.mqtt.client as mqtt
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class MotionServer:
@@ -21,11 +29,6 @@ class MotionServer:
     def __init__(
         self, 
         wled_controller=None,
-        mqtt_host: str = "192.168.50.9",
-        mqtt_port: int = 1883,
-        mqtt_username: Optional[str] = None,
-        mqtt_password: Optional[str] = None,
-        motion_timeout: int = 30,
         debug: bool = False
     ):
         """
@@ -33,19 +36,23 @@ class MotionServer:
         
         Args:
             wled_controller: WLED controller object with methods like turn_on(), turn_off()
-            mqtt_host: MQTT broker hostname/IP
-            mqtt_port: MQTT broker port
-            mqtt_username: MQTT username (optional)
-            mqtt_password:
-            motion_timeout: Seconds to keep action active after motion detection
             debug: Enable debug logging
+            
+        Environment variables:
+            MQTT_HOST: MQTT broker hostname/IP (default: "192.168.50.9")
+            MQTT_PORT: MQTT broker port (default: 1883)
+            MQTT_USERNAME: MQTT username (optional)
+            MQTT_PASSWORD: MQTT password (optional)
+            MOTION_TIMEOUT: Seconds to keep action active after motion detection (default: 30)
         """
         self.wled_controller = wled_controller
-        self.mqtt_host = mqtt_host
-        self.mqtt_port = mqtt_port
-        self.mqtt_username = mqtt_username
-        self.mqtt_password = mqtt_password
-        self.motion_timeout = motion_timeout
+        
+        # Load configuration from environment variables
+        self.mqtt_host = os.getenv("MQTT_HOST", "192.168.50.9")
+        self.mqtt_port = int(os.getenv("MQTT_PORT", "1883"))
+        self.mqtt_username = os.getenv("MQTT_USERNAME")
+        self.mqtt_password = os.getenv("MQTT_PASSWORD", None)
+        self.motion_timeout = int(os.getenv("MOTION_TIMEOUT", "10"))
         
         # Setup logging
         log_level = logging.DEBUG if debug else logging.INFO
@@ -255,7 +262,7 @@ class MotionServer:
                         self.client.reconnect()
                     except Exception as e:
                         self.logger.error(f"Reconnection failed: {e}")
-                        time.sleep(5)  # Wait before next attempt
+                        time.sleep(4)  # Wait before next attempt
                         
         except Exception as e:
             self.logger.error(f"Error in motion server: {e}")
@@ -311,6 +318,12 @@ class MotionServer:
 
 # Example usage and testing
 if __name__ == "__main__":
+    # Create a .env file with:
+    # MQTT_HOST=192.168.50.9
+    # MQTT_PORT=1883
+    # MQTT_USERNAME=your_username
+    # MOTION_TIMEOUT=10
+    
     # Mock WLED controller for testing
     class MockWLEDController:
         def __init__(self):
@@ -335,8 +348,6 @@ if __name__ == "__main__":
     wled = MockWLEDController()
     motion_server = MotionServer(
         wled_controller=wled,
-        mqtt_host="192.168.50.9",
-        motion_timeout=10,  # 10 seconds for testing
         debug=True
     )
     
