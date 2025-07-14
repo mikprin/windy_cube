@@ -8,13 +8,14 @@ logger = logging.getLogger(__name__)
 import pyaudio
 
 class AudioProcessor:
-    """Typical Amplitude is 0.0023 for voice, 0.0001 for silence"""
+    """Need to get a range of audio """
     def __init__(self, callback):
         self.callback = callback
         self.current_amplitude = 0.0
         self.is_running = Event()
         self.is_running.set()
         self.stream = None
+        self._callback_count = 0
         logger.info("Аудио процессор инициализирован")
 
     def _audio_callback(self, indata, frames, time, status):
@@ -40,7 +41,10 @@ class AudioProcessor:
                 else:
                     self.current_amplitude = 1
             
-            logger.info(f"Посчитанная амплитуда: {self.current_amplitude}")
+            self._callback_count += 1
+            
+            if self._callback_count % 100 == 0:
+                logger.info(f"Посчитанная амплитуда: {self.current_amplitude}")
             self.callback(self.current_amplitude)
             
                 
