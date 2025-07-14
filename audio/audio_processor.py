@@ -5,7 +5,7 @@ import config
 import logging
 import math
 logger = logging.getLogger(__name__)
-import pyaudio
+# import pyaudio
 
 class AudioProcessor:
     """Need to get a range of audio """
@@ -31,7 +31,7 @@ class AudioProcessor:
                 amplitude = np.mean(np.abs(indata))
                 if amplitude > 0:
                     amplitude_db = 20 * math.log10(amplitude)
-                    min_db = -60
+                    min_db = -40
                     max_db = 0
                     
                     amplitude_db = max(min_db, min(max_db, amplitude_db))

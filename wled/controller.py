@@ -9,7 +9,7 @@ import math
 logger = logging.getLogger(__name__)
 
 AMP_COEFF = 0.7
-TRANSITION_SPEED = 1.2
+TRANSITION_SPEED = 0.4
 AMPLITUDE_THRESHOLD = 1
 PRESET_THRESHOLD = 30
 MIN_AMP = 1
@@ -96,8 +96,12 @@ class WLEDController:
 
     def _init_audio_leds(self):
         logger.info("Инициализация WLED устройств...")
-        wled1 = Wled.from_one_ip("192.168.8.40")
-        self.audio_leds = [wled1]
+        # wled1 = Wled.from_one_ip("192.168.8.40")
+        # wled2 = Wled.from_one_ip("192.168.8.41")
+        
+        self.audio_leds = [Wled.from_one_ip("192.168.8.40"), Wled.from_one_ip("192.168.8.41")]
+        # self.audio_leds.append(Wled.from_one_ip("192.168.8.40"))
+        # self.audio_leds.append(Wled.from_one_ip("192.168.8.41"))
         
         logger.info(f"Количество внутренних лент лент: {self.audio_leds}")
         self.start_and_wait()
@@ -127,8 +131,9 @@ class WLEDController:
                             executor.submit(wled.dmx.set_data, dmx_data)
                             for wled in self.audio_leds
                         ]
+                    
                 
-                time.sleep(0.033)
+                time.sleep(0.06)
         except Exception as e:
             logger.error(f"Ошибка в работе лент: {e}")
             self.stop()
@@ -230,6 +235,7 @@ class WLEDController:
         def _start_leds():
             try:
                 for audio_wled in self.audio_leds:
+                    logger.info(f"Лента запущена: {audio_wled.ip},{audio_wled.name}")
                     audio_wled.dmx.start()
                     logger.info(f"Лента запущена: {audio_wled}")
             except Exception as e:

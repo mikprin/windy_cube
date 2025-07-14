@@ -35,14 +35,17 @@ sock = None
 class WledDMX:
     LEDS_PER_UNIVERSE = 170 # 512//3
     SEND_OUT_INTERVAL = 0.3
-    def __init__(self, wled):
+    _port_counter = 5568
+    
+    def __init__(self, wled, bind_port=None):
         self.wled = wled
         self.sender = None
+        self.bind_port = bind_port or WledDMX._get_next_port()
 
     def start(self):
         WledDMX.set_send_interval(WledDMX.SEND_OUT_INTERVAL)
         if self.sender is None:
-            self.sender = sacn.sACNsender()
+            self.sender = sacn.sACNsender(bind_port=self.bind_port)
         strips = self.wled.cfg["hw"]["led"]["ins"]
         # assert len(strips) == 1 # Assertion is no longer valid and needed
         self.n_leds = sum(strip["len"] for strip in strips)
@@ -53,6 +56,13 @@ class WledDMX:
             sender.destination = self.wled.ip
         self.sender.start()
 
+    @classmethod
+    def _get_next_port(cls):
+        port = cls._port_counter
+        cls._port_counter += 1
+        return port
+    
+    
     def get_senders(self):
         return [self.sender[i] for i in self.sender.get_active_outputs()]
 
