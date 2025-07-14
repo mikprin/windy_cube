@@ -43,6 +43,7 @@ services:
       # Audio environment variables
       - PULSE_RUNTIME_PATH=/run/user/${UID}/pulse
       - PULSE_SERVER=unix:/run/user/${UID}/pulse/native
+      - TZ=Asia/Tbilisi
     depends_on:
       - mosquitto
     stdin_open: true
